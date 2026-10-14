@@ -1,14 +1,28 @@
 import { createClient } from '../../utils/supabase/server';
 import TransactionView, { Category, Transaction } from './transaction-view';
+import { seedDefaultCategories } from './actions';
 
 export default async function TransactionsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: categories } = await supabase
+  // ponytail: scope categories to current user
+  let { data: categories } = await supabase
     .from('categories')
     .select('id, name')
+    .eq('user_id', user?.id)
     .order('name');
+
+  // ponytail: lazy seed default categories for new users (runs once)
+  if (user && (!categories || categories.length === 0)) {
+    await seedDefaultCategories(user.id);
+    const { data: seeded } = await supabase
+      .from('categories')
+      .select('id, name')
+      .eq('user_id', user.id)
+      .order('name');
+    categories = seeded;
+  }
 
   // ponytail: query transactions scoped to user with category join
   const { data: transactions } = await supabase
